@@ -57,6 +57,13 @@
 #define MOTOR_6_MAX_POSITION 1000
 #define MOTOR_6_MAX_SPEED 1000
 
+// MKS SERVO CAN parameter command IDs (adjust to match manual/MKSServoCAN)
+// These IDs are used by `sendCANMotorConfig()` to send parameter write frames.
+#define MKS_PARAM_CMD_WRITE 0x80
+#define MKS_PARAM_ID_MIN_POS 0x01
+#define MKS_PARAM_ID_MAX_POS 0x02
+#define MKS_PARAM_ID_MAX_SPEED 0x03
+
 // Micro-ROS Node Konfiguration
 #define ROS_NODE_NAME "robot_arm_node"
 #define ROS_NODE_NAMESPACE "robot_arm"

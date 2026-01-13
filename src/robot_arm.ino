@@ -562,27 +562,59 @@ void sendCANMotorCommand(uint8_t motor_index, int16_t position, int16_t speed) {
   can.sendMsgBuf(id, 0, 7, buf);
 }
 
-// Send a configuration frame to a motor via CAN. Format (8 bytes):
-// byte0: 0x10 = CONFIG command
-// byte1: reserved (0)
-// bytes2-3: min position (int16_t)
-// bytes4-5: max position (int16_t)
-// bytes6-7: max speed (int16_t)
+// Send a configuration frame to a motor via CAN.
+// This function sends two kinds of frames:
+// 1) A simple 8-byte legacy CONFIG frame (0x10) as a fallback for older firmware.
+// 2) MKS parameter write frames (command MKS_PARAM_CMD_WRITE) for each parameter
+//    (min pos, max pos, max speed). The exact parameter IDs are configurable in
+//    `src/micro_ros_config.h` using `MKS_PARAM_ID_*` defines. Adjust them to match
+//    your motor firmware manual or MKSServoCAN implementation.
 void sendCANMotorConfig(uint8_t motor_index, int16_t min_pos, int16_t max_pos, int16_t max_speed) {
   if (motor_index >= MOTOR_COUNT) return;
   uint32_t id = MOTOR_1_ID + motor_index; // target motor ID
+
+  // 1) Send legacy 8-byte CONFIG frame (keeps compatibility with previous behavior)
+  uint8_t cfg[8];
+  cfg[0] = 0x10; // CONFIG command (legacy)
+  cfg[1] = 0x00;
+  cfg[2] = (uint8_t)((min_pos >> 8) & 0xFF);
+  cfg[3] = (uint8_t)(min_pos & 0xFF);
+  cfg[4] = (uint8_t)((max_pos >> 8) & 0xFF);
+  cfg[5] = (uint8_t)(max_pos & 0xFF);
+  cfg[6] = (uint8_t)((max_speed >> 8) & 0xFF);
+  cfg[7] = (uint8_t)(max_speed & 0xFF);
+  can.sendMsgBuf(id, 0, 8, cfg);
+
+  // 2) Send MKS parameter write frames (one frame per parameter).
+  // Frame layout used here (adjustable): [CMD, PARAM_ID, DATA_H, DATA_L, ...]
   uint8_t buf[8];
-  buf[0] = 0x10; // CONFIG command
-  buf[1] = 0x00;
+  // min position (int16)
+  buf[0] = (uint8_t)MKS_PARAM_CMD_WRITE;
+  buf[1] = (uint8_t)MKS_PARAM_ID_MIN_POS;
   buf[2] = (uint8_t)((min_pos >> 8) & 0xFF);
   buf[3] = (uint8_t)(min_pos & 0xFF);
-  buf[4] = (uint8_t)((max_pos >> 8) & 0xFF);
-  buf[5] = (uint8_t)(max_pos & 0xFF);
-  buf[6] = (uint8_t)((max_speed >> 8) & 0xFF);
-  buf[7] = (uint8_t)(max_speed & 0xFF);
+  // remaining bytes zero
+  buf[4]=buf[5]=buf[6]=buf[7]=0;
   can.sendMsgBuf(id, 0, 8, buf);
+
+  // max position (int16)
+  buf[0] = (uint8_t)MKS_PARAM_CMD_WRITE;
+  buf[1] = (uint8_t)MKS_PARAM_ID_MAX_POS;
+  buf[2] = (uint8_t)((max_pos >> 8) & 0xFF);
+  buf[3] = (uint8_t)(max_pos & 0xFF);
+  buf[4]=buf[5]=buf[6]=buf[7]=0;
+  can.sendMsgBuf(id, 0, 8, buf);
+
+  // max speed (int16)
+  buf[0] = (uint8_t)MKS_PARAM_CMD_WRITE;
+  buf[1] = (uint8_t)MKS_PARAM_ID_MAX_SPEED;
+  buf[2] = (uint8_t)((max_speed >> 8) & 0xFF);
+  buf[3] = (uint8_t)(max_speed & 0xFF);
+  buf[4]=buf[5]=buf[6]=buf[7]=0;
+  can.sendMsgBuf(id, 0, 8, buf);
+
   if (canDebug) {
-    Serial.print("Sent CONFIG to motor "); Serial.print(motor_index);
+    Serial.print("Sent CONFIG/MKS params to motor "); Serial.print(motor_index);
     Serial.print(" id=0x"); Serial.print(id, HEX);
     Serial.print(" min="); Serial.print(min_pos);
     Serial.print(" max="); Serial.print(max_pos);
