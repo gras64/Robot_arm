@@ -32,6 +32,31 @@
 #define MOTOR_MAX_SPEED 1000
 #define MOTOR_MIN_SPEED -1000
 
+// Per-motor limits (override defaults above per motor if defined)
+#define MOTOR_1_MIN_POSITION -1000
+#define MOTOR_1_MAX_POSITION 1000
+#define MOTOR_1_MAX_SPEED 1000
+
+#define MOTOR_2_MIN_POSITION -1000
+#define MOTOR_2_MAX_POSITION 1000
+#define MOTOR_2_MAX_SPEED 1000
+
+#define MOTOR_3_MIN_POSITION -1000
+#define MOTOR_3_MAX_POSITION 1000
+#define MOTOR_3_MAX_SPEED 1000
+
+#define MOTOR_4_MIN_POSITION -1000
+#define MOTOR_4_MAX_POSITION 1000
+#define MOTOR_4_MAX_SPEED 1000
+
+#define MOTOR_5_MIN_POSITION -1000
+#define MOTOR_5_MAX_POSITION 1000
+#define MOTOR_5_MAX_SPEED 1000
+
+#define MOTOR_6_MIN_POSITION -1000
+#define MOTOR_6_MAX_POSITION 1000
+#define MOTOR_6_MAX_SPEED 1000
+
 // Micro-ROS Node Konfiguration
 #define ROS_NODE_NAME "robot_arm_node"
 #define ROS_NODE_NAMESPACE "robot_arm"

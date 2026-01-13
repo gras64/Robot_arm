@@ -49,6 +49,19 @@ robot_arm/
 - Motor 5: GPIO 12
 - Motor 6: GPIO 13
 
+Hinweis: Die oben aufgeführten GPIO-Pins sind die optionalen PWM-/GPIO-Ausgänge,
+die verwendet werden, wenn Sie Treiber direkt per PWM ansteuern. Bei Verwendung
+der MKS SERVO42D über CAN ist das nicht nötig — die Motoren werden ausschließlich
+über den CAN-Bus gesteuert. Die Firmware deaktiviert die direkten PWM-Ausgänge
+standardmäßig, um Konflikte zu vermeiden. Schließen Sie stattdessen die CAN_H/CAN_L
+Leitungen, Vcc und gemeinsames GND an die MKS SERVO42D an.
+
+Kurz:
+- Wenn Sie CAN verwenden: Verbinden Sie nur CAN_H/CAN_L + Vcc + GND; die GPIOs
+    müssen nicht angesetzt werden.
+- Wenn Sie GPIO/PWM verwenden wollen: schließen Sie die Motor-Pins an und aktivieren
+    `setUsePWM(true)` im Code für die gewünschten Motoren.
+
 ## Implementierung
 
 Die Implementierung verwendet:
@@ -73,6 +86,10 @@ Jede CAN-Nachricht enthält 4 Bytes:
 
 Werte sind im Bereich von -1000 bis 1000.
 
+Hinweis zur MKS-CAN‑Kompatibilität:
+- Die Firmware sendet Bewegungsbefehle als MKS SERVO `posAbsolute` Frames (Command `0xFE`) mit dem Byte‑Layout `[0xFE, speed_hi, speed_lo, accel, pos24_hi, pos16, pos8]` (7 Bytes). Das ist kompatibel mit gängigen MKS/CAN Implementierungen wie `MKSServoCAN`.
+- Einige ältere Beispiele im Repo verwenden ein 4‑Byte Format; das funktioniert nur mit angepasster Firmware auf der Gegenseite. Verwende das `posAbsolute` Format für volle Kompatibilität.
+
 ## Lizenz
 
 Dieses Projekt ist noch nicht lizenziert.
@@ -95,6 +112,43 @@ Dieses Projekt ist noch nicht lizenziert.
     - G-code (einfache Form): `G1 A500 B-200 F300` (A–F = Achsen 1–6, F = Speed)
 - **ACK / Fehler:** Nach Verarbeitung sendet die Firmware z.B. `ok` oder `err_*` an `robot_arm/ack`.
 - **Flow & Safety:** Für produktive Nutzung empfehle ich Sequenznummern, ACK/Retry-Logik und einen Not-Aus (`M112`) als Prioritätsbefehl.
+
+## Motor-Konfiguration über micro-ROS
+
+    ```json
+    { "motor": 1, "min_pos": -800, "max_pos": 800, "max_speed": 600 }
+    ```
+    ```json
+    { "min_pos": -1000, "max_pos": 1000, "max_speed": 1000 }
+    ```
+
+Hinweis: micro-ROS-Features werden nur kompiliert, wenn `micro_ros_platform.h` verfügbar ist; die Verbindung wird in `setup()` initialisiert.
+
+Zusätzlich: Parameter-ähnliche Steuerung
+
+
+Beispiele:
+`robot_arm/param_set` payload (ein Motor):
+```json
+{ "motor": 1, "min_pos": -800, "max_pos": 800, "max_speed": 600 }
+```
+`robot_arm/param_set` payload (alle Motoren):
+```json
+{ "min_pos": -1000, "max_pos": 1000, "max_speed": 1000 }
+```
+
+Per-Motor-Voreinstellungen
+
+Du kannst pro Motor andere Min/Max/Speed-Werte als Firmware-Voreinstellung in `src/micro_ros_config.h` definieren. Standardmäßig werden dort `MOTOR_1_MIN_POSITION` .. `MOTOR_6_MAX_SPEED` mit sinnvollen Defaults gesetzt. Beispiel-Overrides in `src/micro_ros_config.h`:
+
+```c
+// Beispiel: Motor 1 hat engeren Bereich
+#define MOTOR_1_MIN_POSITION -800
+#define MOTOR_1_MAX_POSITION 800
+#define MOTOR_1_MAX_SPEED 800
+```
+
+Die Firmware liest diese Werte beim Start und sendet die entsprechenden CONFIG-Frames per CAN an jeden Motor. Danach kannst du Konfigurationen weiterhin live per `robot_arm/param_set` setzen.
 
 ## Kurze Upload- und Monitor-Hinweise
 
