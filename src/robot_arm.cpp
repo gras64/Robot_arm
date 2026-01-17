@@ -4,22 +4,26 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#if defined(__has_include)
-#  if __has_include(<micro_ros_platform.h>)
-#    include <micro_ros_platform.h>
-#    include <rcl/rcl.h>
-#    include <rclc/rclc.h>
-#    include <rclc/executor.h>
-#    include <std_msgs/msg/string.h>
-#  else
-#    pragma message ("micro_ros_platform.h not found; micro-ROS features disabled")
-#  endif
-#else
-/* Compiler doesn't support __has_include; try to include and allow failure */
-#  include <micro_ros_platform.h>
-#endif
+#include "micro_ros_config.h"
 #include "motor_control.h"
 
+// Forward declarations (required for .cpp; .ino auto-prototypes these)
+void pollSensors();
+void mqttCallback(char* topic, byte* payload, unsigned int length);
+void ensureMqttConnected();
+void receiveCANMessages();
+void parseSerialCommand();
+void controlMotors();
+void sendCANMotorCommand(uint8_t motor_index, int16_t position, int16_t speed);
+void sendCANMotorConfig(uint8_t motor_index, int16_t min_pos, int16_t max_pos, int16_t max_speed);
+void processMotorCommand(uint8_t motor_id, uint8_t* buf, uint8_t len);
+#if defined(__has_include)
+#  if __has_include(<micro_ros_platform.h>)
+void rosConfigCallback(const void *msgin);
+void rosParamSetCallback(const void *msgin);
+void publishParams();
+#  endif
+#endif
 
 // Optional: Polling der Winkelsensoren und Meldung bei Bewegung.
 // Beispiel: Wenn Ihre Sensoren an analogen Pins A0..A5 hängen, können
@@ -34,27 +38,51 @@ void pollSensors() {
   // }
 }
 
-// CAN Bus Konfiguration
-#define CAN_CS_PIN 10
-#define CAN_INT_PIN 2
-MCP_CAN can(CAN_CS_PIN);
+// CAN Bus Konfiguration (pins come from micro_ros_config.h)
+MCP_CAN can(CAN_BUS_CS_PIN);
 
 // Motorsteuerung für MKS SERVO42D
+#ifndef MOTOR_COUNT
 #define MOTOR_COUNT 6
+#endif
+#ifndef MOTOR_PIN_1
 #define MOTOR_PIN_1 25
+#endif
+#ifndef MOTOR_PIN_2
 #define MOTOR_PIN_2 26
+#endif
+#ifndef MOTOR_PIN_3
 #define MOTOR_PIN_3 27
+#endif
+#ifndef MOTOR_PIN_4
 #define MOTOR_PIN_4 14
+#endif
+#ifndef MOTOR_PIN_5
 #define MOTOR_PIN_5 12
+#endif
+#ifndef MOTOR_PIN_6
 #define MOTOR_PIN_6 13
+#endif
 
 // CAN-Bus IDs für die Motoren
+#ifndef MOTOR_1_ID
 #define MOTOR_1_ID 0x100
+#endif
+#ifndef MOTOR_2_ID
 #define MOTOR_2_ID 0x101
+#endif
+#ifndef MOTOR_3_ID
 #define MOTOR_3_ID 0x102
+#endif
+#ifndef MOTOR_4_ID
 #define MOTOR_4_ID 0x103
+#endif
+#ifndef MOTOR_5_ID
 #define MOTOR_5_ID 0x104
+#endif
+#ifndef MOTOR_6_ID
 #define MOTOR_6_ID 0x105
+#endif
 
 // Globale Variablen
 MotorControl* motors[MOTOR_COUNT];
@@ -83,9 +111,6 @@ void publishParams();
 // global publisher for params
 static rcl_publisher_t robot_params_pub;
 static std_msgs__msg__String robot_params_msg;
-#  endif
-#  endif
-#endif
 #  endif
 #endif
 
@@ -118,14 +143,13 @@ const char* MQTT_TOPIC_CMD = "robot_arm/command"; // accepts JSON or G-code
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-// Forward declarations
-void mqttCallback(char* topic, byte* payload, unsigned int length);
-void ensureMqttConnected();
-
 void setup() {
   // Starten der seriellen Kommunikation
   Serial.begin(115200);
   
+  // Initialize SPI with explicit pins for MCP2515 (SCK, MISO, MOSI, SS)
+  SPI.begin(CAN_BUS_SCK_PIN, CAN_BUS_MISO_PIN, CAN_BUS_MOSI_PIN, CAN_BUS_CS_PIN);
+
   // CAN Bus initialisieren (MCP2515 API: idMode, speed, clock)
   if (can.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) {
     Serial.println("CAN Bus initialized successfully");
@@ -136,8 +160,8 @@ void setup() {
   }
   
   // CAN Bus Interrupt setzen
-  pinMode(CAN_INT_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(CAN_INT_PIN), onCanInt, FALLING);
+  pinMode(CAN_BUS_INT_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(CAN_BUS_INT_PIN), onCanInt, FALLING);
   
   // Motor-Instanzen erstellen
   motors[0] = new MotorControl(MOTOR_PIN_1);
@@ -330,9 +354,12 @@ void rosConfigCallback(const void *msgin) {
     }
   }
 }
+#endif
+#endif
+
+// param_set callback: accept either parameter-like JSON or same format as config
 #if defined(__has_include)
 #  if __has_include(<micro_ros_platform.h>)
-// param_set callback: accept either parameter-like JSON or same format as config
 void rosParamSetCallback(const void *msgin) {
   const std_msgs__msg__String * msg = (const std_msgs__msg__String *)msgin;
   if (!msg || !msg->data.data) return;
@@ -411,10 +438,14 @@ void publishParams() {
     Serial.println("Failed to publish params");
   } else {
     Serial.print("Published params: "); Serial.println(params_buf);
+
   }
 }
 #  endif
 #endif
+
+#if defined(__has_include)
+#  if __has_include(<micro_ros_platform.h>)
 #  endif
 #endif
 
@@ -563,12 +594,6 @@ void sendCANMotorCommand(uint8_t motor_index, int16_t position, int16_t speed) {
 }
 
 // Send a configuration frame to a motor via CAN.
-// This function sends two kinds of frames:
-// 1) A simple 8-byte legacy CONFIG frame (0x10) as a fallback for older firmware.
-// 2) MKS parameter write frames (command MKS_PARAM_CMD_WRITE) for each parameter
-//    (min pos, max pos, max speed). The exact parameter IDs are configurable in
-//    `src/micro_ros_config.h` using `MKS_PARAM_ID_*` defines. Adjust them to match
-//    your motor firmware manual or MKSServoCAN implementation.
 void sendCANMotorConfig(uint8_t motor_index, int16_t min_pos, int16_t max_pos, int16_t max_speed) {
   if (motor_index >= MOTOR_COUNT) return;
   uint32_t id = MOTOR_1_ID + motor_index; // target motor ID
@@ -586,7 +611,6 @@ void sendCANMotorConfig(uint8_t motor_index, int16_t min_pos, int16_t max_pos, i
   can.sendMsgBuf(id, 0, 8, cfg);
 
   // 2) Send MKS parameter write frames (one frame per parameter).
-  // Frame layout used here (adjustable): [CMD, PARAM_ID, DATA_H, DATA_L, ...]
   uint8_t buf[8];
   // min position (int16)
   buf[0] = (uint8_t)MKS_PARAM_CMD_WRITE;

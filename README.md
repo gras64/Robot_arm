@@ -1,108 +1,50 @@
-# 6-Achsen Robotarm mit ESP32 und CAN-Bus
+# 6-Achsen-Roboterarm (ESP32 + CAN)
 
-Dieses Projekt implementiert einen 6-achsen Robotarm mit NEMA 17 Motoren, die über einen CAN-Bus mit einem ESP32-WROOM-1 Steuerversion kommunizieren.
+Kompaktes Steuerungsprojekt für einen 6‑Achsen-Roboterarm. Die Hauptsteuerung läuft auf einem ESP32; Motorbefehle werden per CAN an MKS SERVO42D‑Treiber gesendet.
 
-## Hardware
+Kurz: `src/robot_arm.cpp` enthält die Firmware (CAN, MQTT, optional micro-ROS). Konfigurationen stehen in `src/micro_ros_config.h`.
 
-- **Steuereinheit**: ESP32-WROOM-1
-- **Motoren**: 6 x NEMA 17
-- **Motor-Treiber**: MKS SERVO42D
-- **CAN-Bus Controller**: MCP2515
-- **Kommunikation**: CAN-Bus (500 kbps)
+Features
+- CAN‑basierte Motorsteuerung (MKS posAbsolute / 0xFE)
+- MQTT für G-code/JSON Eingaben (`robot_arm/command`) und `robot_arm/ack`
+- Optional: micro-ROS Topics/Params (nur wenn micro-ROS Headers vorhanden)
 
-## Projektstruktur
+Wichtiger Verdrahtungsplan
+- ESP32 SPI (VSPI Standardpins) -> MCP2515 MOSI / MISO / SCK
+   - Standard (konfiguriert): `CAN_BUS_SCK_PIN = 18`, `CAN_BUS_MOSI_PIN = 23`, `CAN_BUS_MISO_PIN = 19`
+- ESP32 `CAN_BUS_CS_PIN` (default GPIO 10) -> MCP2515 CS (Slave Select)
+- ESP32 `CAN_BUS_INT_PIN` (default GPIO 2) -> MCP2515 INT (Interrupt, active LOW)
+- MCP2515 VCC -> 3.3V (wichtig)
+   - Hinweis: Dieses Projekt geht davon aus, dass das CAN-Modul 3.3V-Signale verwendet. Versorge das Modul mit 3.3V und verwende bei 5V-Modulen einen Pegelwandler. Unsachgemäße Versorgung kann den ESP32 beschädigen.
+- MCP2515 GND -> ESP32 GND (gemeinsame Masse)
 
-```
-robot_arm/
-├── robot_arm.ino          # Haupt-Steuerungsdatei
-├── README.md              # Diese Dokumentation
-└── src/                   # Quellcodedateien
-    ├── robot_arm.ino      # Haupt-Steuerung
-    ├── motor_control.h    # Motorsteuerungs-Klasse
-    └── motor_control.cpp  # Motorsteuerungs-Implementierung
-```
+- MCP2515 CAN_TX/CAN_RX (oder CAN_H/CAN_L vom Transceiver) -> MKS SERVO42D CAN_H / CAN_L (Bus parallel zu allen Treibern)
+- MKS SERVO42D VCC -> externe Motorversorgung; gemeinsames GND mit ESP32/MCP2515
 
-## Funktionen
+Grafische Skizze (vereinfacht):
 
-- CAN-Bus Kommunikation für Motorsteuerung
-- Unterstützung für 6 Motoren mit individuellen CAN-IDs
-- PWM-basierte Steuerung der MKS SERVO42D Treiber
-- Serielle Kommunikation zur Debugging-Zwecken
+![Wiring Diagram](docs/wiring.svg)
 
-## CAN-Bus IDs
+Zusätzliche Hinweise
+- Busabschlüsse: Am Anfang und Ende des CAN-Busses 120 Ω Abschlusswiderstände verwenden.
+- Wenn Sie statt CAN direkt PWM/GPIO nutzen wollen: die Pin‑Defines stehen in `src/micro_ros_config.h` (`MOTOR_PIN_1`..`MOTOR_PIN_6`). Die Firmware deaktiviert PWM-Ausgänge standardmäßig.
 
-- Motor 1: 0x100
-- Motor 2: 0x101
-- Motor 3: 0x102
-- Motor 4: 0x103
-- Motor 5: 0x104
-- Motor 6: 0x105
+Schnellstart
+1. Einstellungen: `src/micro_ros_config.h` für Pins, CAN‑IDs, Limits prüfen.
+2. Build & Upload:
+   ```bash
+   python -m platformio run --environment esp32dev --target upload
+   ```
+3. Monitor: `platformio device monitor -b 115200`
 
-## Steckerbelegung
+CAN-Nachrichten (kurz)
+- Bewegungsframe (MKS `posAbsolute`): `[0xFE, speed_hi, speed_lo, accel, pos24_hi, pos16, pos8]` (7 Bytes)
+- Einfaches 4‑Byte Statusformat (Position+Speed) wird ebenfalls lokal verarbeitet.
 
-- CAN_CS_PIN: GPIO 10
-- CAN_INT_PIN: GPIO 2
-- Motor 1: GPIO 25
-- Motor 2: GPIO 26
-- Motor 3: GPIO 27
-- Motor 4: GPIO 14
-- Motor 5: GPIO 12
-- Motor 6: GPIO 13
+Konfiguration per micro-ROS / MQTT
+- Param- und Konfigurations-Topics: `robot_arm/config`, `robot_arm/param_set`, `robot_arm/params` (siehe Code).
 
-## Implementierung
+Lizenz
+- Noch keine Lizenz festgelegt.
 
-Die Implementierung verwendet:
-
-1. **SPI-Bibliothek** für die Kommunikation mit dem MCP2515
-2. **CAN-Bus Bibliothek** für die CAN-Kommunikation
-3. **PWM-Ausgabe** für die Motorsteuerung
-4. **Serial-Kommunikation** für Debugging-Zwecke
-
-## Verwendung
-
-1. Laden Sie die Firmware auf Ihren ESP32-WROOM-1
-2. Verbinden Sie die Motoren mit den MKS SERVO42D Treibern
-3. Stellen Sie die CAN-Bus-Verbindung her
-4. Senden Sie CAN-Nachrichten an die entsprechenden IDs mit Position und Geschwindigkeitswerten
-
-## CAN-Nachrichtenformat
-
-Jede CAN-Nachricht enthält 4 Bytes:
-- Bytes 0-1: Position (int16_t)
-- Bytes 2-3: Geschwindigkeit (int16_t)
-
-Werte sind im Bereich von -1000 bis 1000.
-
-## Lizenz
-
-Dieses Projekt ist noch nicht lizenziert.
-
-## CAN-Bus Debugging
-
-- **Serial Debugging:** Verwenden Sie die serielle Konsole (`Serial`, 115200) um empfangene CAN-Frames, Fehlerstatistiken und Bestätigungen zu sehen.
-- **Sofort-Befehle über UART:** Die Firmware unterstützt einfache Debug-Befehle über USB-Serial:
-    - `DBG CAN ON` / `DBG CAN OFF` : Ausgabe aller eingehenden CAN-Frames ein-/ausschalten.
-    - `DBG LOOPBACK ON` / `DBG LOOPBACK OFF` : MCP2515 in Loopback für lokale Tests versetzen bzw. zurücksetzen.
-    - `DBG STATS` : Zeigt Fehler- und Zählerstatistiken des CAN-Controllers.
-- **Loopback-Test:** Im Loopback-Modus (`DBG LOOPBACK ON`) kann die Firmware CAN-Frames senden und lokales Empfangs-Logging prüfen, ohne physischen Bus.
-- **Interrupt-basiert:** Die Firmware nutzt den MCP2515-INT-Pin (GPIO `CAN_INT_PIN`) und gibt bei aktivierter Debug-Ausgabe empfangene Frames sofort aus.
-
-## Backend / G-code über MQTT
-
-- **MQTT Integration:** Die Firmware kann G-code oder JSON-Commands per MQTT empfangen (Topic: `robot_arm/command`) und ACKs auf `robot_arm/ack` senden. Stelle `WIFI_SSID`, `WIFI_PASS` und `MQTT_SERVER` in `src/robot_arm.ino` ein.
-- **Unterstützte Formate:**
-    - JSON: `{ "cmd":"move", "motor":3, "pos":500, "speed":200 }`
-    - G-code (einfache Form): `G1 A500 B-200 F300` (A–F = Achsen 1–6, F = Speed)
-- **ACK / Fehler:** Nach Verarbeitung sendet die Firmware z.B. `ok` oder `err_*` an `robot_arm/ack`.
-- **Flow & Safety:** Für produktive Nutzung empfehle ich Sequenznummern, ACK/Retry-Logik und einen Not-Aus (`M112`) als Prioritätsbefehl.
-
-## Kurze Upload- und Monitor-Hinweise
-
-- Upload (Beispiel):
-    ```bash
-    platformio run -e esp32dev --target upload --upload-port /dev/ttyUSB0
-    ```
-- Serielle Konsole:
-    ```bash
-    platformio device monitor -p /dev/ttyUSB0 -b 115200
-    ```
+Bei Fragen zur Verdrahtung oder Anpassungen der Pinbelegung, sag mir, welche Hardware‑Revision (ESP32 Modul, MCP2515 Board) du verwendest — dann ergänze ich konkrete Pin-Nummern.

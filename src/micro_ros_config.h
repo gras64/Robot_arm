@@ -8,6 +8,14 @@
 #define CAN_BUS_SPEED 500000UL
 #define CAN_BUS_CS_PIN 10
 #define CAN_BUS_INT_PIN 2
+// SPI pins to use for the MCP2515 (VSPI default on most ESP32 boards)
+// If your module wires differ, change these to match your wiring.
+#define CAN_BUS_SCK_PIN 18
+#define CAN_BUS_MOSI_PIN 23
+#define CAN_BUS_MISO_PIN 19
+
+// Hinweis: Das CAN-Modul arbeitet mit 3.3V. Versorge VCC mit 3.3V
+// und stelle sicher, dass die Signale 3.3V-kompatibel sind.
 
 // Motor Konfiguration
 #define MOTOR_COUNT 6
@@ -31,6 +39,38 @@
 #define MOTOR_MIN_POSITION -1000
 #define MOTOR_MAX_SPEED 1000
 #define MOTOR_MIN_SPEED -1000
+
+// Per-motor limits (override defaults above per motor if defined)
+#define MOTOR_1_MIN_POSITION -1000
+#define MOTOR_1_MAX_POSITION 1000
+#define MOTOR_1_MAX_SPEED 1000
+
+#define MOTOR_2_MIN_POSITION -1000
+#define MOTOR_2_MAX_POSITION 1000
+#define MOTOR_2_MAX_SPEED 1000
+
+#define MOTOR_3_MIN_POSITION -1000
+#define MOTOR_3_MAX_POSITION 1000
+#define MOTOR_3_MAX_SPEED 1000
+
+#define MOTOR_4_MIN_POSITION -1000
+#define MOTOR_4_MAX_POSITION 1000
+#define MOTOR_4_MAX_SPEED 1000
+
+#define MOTOR_5_MIN_POSITION -1000
+#define MOTOR_5_MAX_POSITION 1000
+#define MOTOR_5_MAX_SPEED 1000
+
+#define MOTOR_6_MIN_POSITION -1000
+#define MOTOR_6_MAX_POSITION 1000
+#define MOTOR_6_MAX_SPEED 1000
+
+// MKS SERVO CAN parameter command IDs (adjust to match manual/MKSServoCAN)
+// These IDs are used by `sendCANMotorConfig()` to send parameter write frames.
+#define MKS_PARAM_CMD_WRITE 0x80
+#define MKS_PARAM_ID_MIN_POS 0x01
+#define MKS_PARAM_ID_MAX_POS 0x02
+#define MKS_PARAM_ID_MAX_SPEED 0x03
 
 // Micro-ROS Node Konfiguration
 #define ROS_NODE_NAME "robot_arm_node"
