@@ -19,6 +19,10 @@ Wichtiger Verdrahtungsplan
 - MCP2515 CAN_TX/CAN_RX (oder CAN_H/CAN_L vom Transceiver) -> MKS SERVO42D CAN_H / CAN_L (Bus parallel zu allen Treibern)
 - MKS SERVO42D VCC -> externe Motorversorgung; gemeinsames GND mit ESP32/MCP2515
 
+Grafische Skizze (vereinfacht):
+
+![Wiring Diagram](docs/wiring.svg)
+
 Zusätzliche Hinweise
 - Busabschlüsse: Am Anfang und Ende des CAN-Busses 120 Ω Abschlusswiderstände verwenden.
 - Wenn Sie statt CAN direkt PWM/GPIO nutzen wollen: die Pin‑Defines stehen in `src/micro_ros_config.h` (`MOTOR_PIN_1`..`MOTOR_PIN_6`). Die Firmware deaktiviert PWM-Ausgänge standardmäßig.
