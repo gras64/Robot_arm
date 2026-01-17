@@ -8,6 +8,14 @@
 #define CAN_BUS_SPEED 500000UL
 #define CAN_BUS_CS_PIN 10
 #define CAN_BUS_INT_PIN 2
+// SPI pins to use for the MCP2515 (VSPI default on most ESP32 boards)
+// If your module wires differ, change these to match your wiring.
+#define CAN_BUS_SCK_PIN 18
+#define CAN_BUS_MOSI_PIN 23
+#define CAN_BUS_MISO_PIN 19
+
+// Hinweis: Das CAN-Modul arbeitet mit 3.3V. Versorge VCC mit 3.3V
+// und stelle sicher, dass die Signale 3.3V-kompatibel sind.
 
 // Motor Konfiguration
 #define MOTOR_COUNT 6

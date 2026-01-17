@@ -10,10 +10,12 @@ Features
 - Optional: micro-ROS Topics/Params (nur wenn micro-ROS Headers vorhanden)
 
 Wichtiger Verdrahtungsplan
-- ESP32 SPI (MOSI / MISO / SCK) -> MCP2515 MOSI / MISO / SCK (verwende denselben SPI-Bus, z.B. VSPI/HSPI).
-- ESP32 `CAN_CS_PIN` (GPIO 10) -> MCP2515 CS
-- ESP32 `CAN_INT_PIN` (GPIO 2) -> MCP2515 INT (Interrupt, active LOW)
-- MCP2515 VCC -> Module-spezifische Versorgung (3.3V oder 5V). Prüfe dein Modul! Wenn es 5V benötigt, achte auf Pegelwandler oder ein 5V-tolerantes ESP32-Frontend.
+- ESP32 SPI (VSPI Standardpins) -> MCP2515 MOSI / MISO / SCK
+   - Standard (konfiguriert): `CAN_BUS_SCK_PIN = 18`, `CAN_BUS_MOSI_PIN = 23`, `CAN_BUS_MISO_PIN = 19`
+- ESP32 `CAN_BUS_CS_PIN` (default GPIO 10) -> MCP2515 CS (Slave Select)
+- ESP32 `CAN_BUS_INT_PIN` (default GPIO 2) -> MCP2515 INT (Interrupt, active LOW)
+- MCP2515 VCC -> 3.3V (wichtig)
+   - Hinweis: Dieses Projekt geht davon aus, dass das CAN-Modul 3.3V-Signale verwendet. Versorge das Modul mit 3.3V und verwende bei 5V-Modulen einen Pegelwandler. Unsachgemäße Versorgung kann den ESP32 beschädigen.
 - MCP2515 GND -> ESP32 GND (gemeinsame Masse)
 
 - MCP2515 CAN_TX/CAN_RX (oder CAN_H/CAN_L vom Transceiver) -> MKS SERVO42D CAN_H / CAN_L (Bus parallel zu allen Treibern)
